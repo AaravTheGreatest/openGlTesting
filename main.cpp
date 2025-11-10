@@ -14,8 +14,9 @@ const char *vertexShaderSource = "#version 330 core\n"
 "}\0";
 const char *fragmentShaderSource = "#version 330 core\n"
 "out vec4 FragColor;\n"
+"uniform vec4 color;\n"
 "void main() {\n"
-"\tFragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
+"\tFragColor = color;\n"
 "}\0";
 
 void framebufferResize(GLFWwindow* win, int width, int height);
@@ -23,24 +24,30 @@ void framebufferResize(GLFWwindow* win, int width, int height) {
   glViewport(0, 0, width, height);
 }
 
-glm::vec2 processInput(GLFWwindow *window) {
+glm::vec2 processMovement(GLFWwindow *window) {
   glm::vec2 dir(0.0f);
-  if (glfwGetKey(window, GLFW_KEY_ESCAPE)) {
-    glfwSetWindowShouldClose(window, true);
-  }
-  if (glfwGetKey(window, GLFW_KEY_W)) {
-    dir.y += 0.01f;
-  }
-  if (glfwGetKey(window, GLFW_KEY_S)) {
-    dir.y -= 0.01f;
-  }
-  if (glfwGetKey(window, GLFW_KEY_A)) {
-    dir.x -= 0.01f;
-  }
-  if (glfwGetKey(window, GLFW_KEY_D)) {
-    dir.x += 0.01f;
-  }
+  if (glfwGetKey(window, GLFW_KEY_W) || glfwGetKey(window, GLFW_KEY_UP)) dir.y += 0.01f;
+  if (glfwGetKey(window, GLFW_KEY_S) || glfwGetKey(window, GLFW_KEY_DOWN)) dir.y -= 0.01f;
+  if (glfwGetKey(window, GLFW_KEY_A) || glfwGetKey(window, GLFW_KEY_LEFT)) dir.x -= 0.01f;
+  if (glfwGetKey(window, GLFW_KEY_D) || glfwGetKey(window, GLFW_KEY_RIGHT)) dir.x += 0.01f;
   return dir;
+}
+void processInput(GLFWwindow *window) {
+  if (glfwGetKey(window, GLFW_KEY_ESCAPE)) glfwSetWindowShouldClose(window, true);
+}
+
+void shoot(GLFWwindow *window, unsigned int *VAO, unsigned int *VBO, unsigned int shaderProgram) {
+  float verts[] = {
+    -0.005f, -0.005f, 0.0f,
+    0.005f, -0.005f, 0.0f,
+    0.005f, 0.005f, 0.0f,
+
+    0.005f, 0.005f, 0.0f,
+    -0.005f, 0.005f, 0.0f,
+    -0.005f, -0.005f, 0.0f
+  };
+  glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_DYNAMIC_DRAW);
+  
 }
 
 int main() {
@@ -98,26 +105,53 @@ int main() {
   // glUseProgram(shaderProgram);
   glDeleteShader(vertexShader);
   glDeleteShader(fragmentShader);
-  glUseProgram(shaderProgram);
   glm::mat4 transform = glm::mat4(1.0f);
   int transLoc = glGetUniformLocation(shaderProgram, "transform");
-  float speed = 0.01f;
+  float speed = 0.0f, yVel = 0.0f, grav = -0.02581f, timeValue = glfwGetTime(), greenValue = ((sin(timeValue) / 2.0f) + 0.5f);
   glm::vec2 pos(0.0f);
+  glm::vec4 color(0.0f, 0.0f, 0.0f, 1.0f);
+  int colorLoc = glGetUniformLocation(shaderProgram, "color"), vertexColorLocation = glGetUniformLocation(shaderProgram, "color");
+  glUniform4fv(colorLoc, 1, glm::value_ptr(color));
+  glUseProgram(shaderProgram);
+  glUniform4f(vertexColorLocation, 0.0f, greenValue, 0.0f, 1.0f);
   while (!glfwWindowShouldClose(window)) { // Loop :D
-    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+    timeValue = glfwGetTime();
+    greenValue = (sin(timeValue) / 2.0f) + 0.5f;
+    vertexColorLocation = glGetUniformLocation(shaderProgram, "color");
+    glUseProgram(shaderProgram);
+    glUniform4f(vertexColorLocation, 0.0f, greenValue, 0.0f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
-    glm::vec2 input = processInput(window);
+    glm::vec2 input = processMovement(window);
+    processInput(window);
     if (glm::length(input) > 0.0f) input = glm::normalize(input);
-    pos += input * speed;
-    float limit = 1.0f, halfSize = 0.5f;
-    pos.x = glm::clamp(pos.x, -limit, limit - halfSize);
-    pos.y = glm::clamp(pos.y, -limit + halfSize, limit - halfSize);
+    float dTime = 1.0f / 60.0f;
+    pos.x += input.x * 0.01 + speed;
+    yVel += grav * dTime;
+    float limit = 1.0f, halfSize = 0.05f;
+    if (pos.y >= -0.95 + halfSize + 0.0001) pos.y += 0.01 + yVel;
+    else pos.y += input.y * 0.01 + yVel;
+    if (pos.y < -0.95 + halfSize) {
+      pos.y = -0.95 + halfSize;
+      yVel = 0.0f;
+    }
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && pos.y <= -0.95 + halfSize) yVel += 0.01f;
+    pos.x = glm::clamp(pos.x, -limit + halfSize, limit - halfSize);
+    // pos.y = glm::clamp(pos.y, -limit + halfSize, limit - halfSize);
     // transform = glm::translate(transform, glm::vec3(input.x * speed, input.y * speed, 0.0f));
     transform = glm::translate(glm::mat4(1.0f), glm::vec3(pos, 0.0f));
     glUseProgram(shaderProgram);
     glUniformMatrix4fv(transLoc, 1, GL_FALSE, glm::value_ptr(transform));
     glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    color.x = 0.5f;
+    color.y = greenValue;
+    glUniform4fv(colorLoc, 1, glm::value_ptr(color));
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    //color = (0.0f, 0.5f, 0.0f, 1.0f);
+    color.y = 0.0f;
+    color.x = greenValue;
+    glUniform4fv(colorLoc, 1, glm::value_ptr(color));
+    glDrawArrays(GL_TRIANGLES, 3, 6);
     glfwSwapBuffers(window);
     glfwPollEvents();
   }
