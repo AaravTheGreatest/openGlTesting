@@ -26,29 +26,38 @@ void framebufferResize(GLFWwindow* win, int width, int height) {
 
 glm::vec2 processMovement(GLFWwindow *window) {
   glm::vec2 dir(0.0f);
-  if (glfwGetKey(window, GLFW_KEY_W) || glfwGetKey(window, GLFW_KEY_UP)) dir.y += 0.01f;
-  if (glfwGetKey(window, GLFW_KEY_S) || glfwGetKey(window, GLFW_KEY_DOWN)) dir.y -= 0.01f;
-  if (glfwGetKey(window, GLFW_KEY_A) || glfwGetKey(window, GLFW_KEY_LEFT)) dir.x -= 0.01f;
-  if (glfwGetKey(window, GLFW_KEY_D) || glfwGetKey(window, GLFW_KEY_RIGHT)) dir.x += 0.01f;
+  if (glfwGetKey(window, GLFW_KEY_W) || glfwGetKey(window, GLFW_KEY_UP) || glfwGetKey(window, GLFW_KEY_SPACE)) dir.y += 0.1f;
+  // if (glfwGetKey(window, GLFW_KEY_S) || glfwGetKey(window, GLFW_KEY_DOWN)) dir.y -= 0.01f;
+  if (glfwGetKey(window, GLFW_KEY_A) || glfwGetKey(window, GLFW_KEY_LEFT)) dir.x -= 1.0f;
+  if (glfwGetKey(window, GLFW_KEY_D) || glfwGetKey(window, GLFW_KEY_RIGHT)) dir.x += 1.0f;
+  if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT)) dir.x *= 1.7;
   return dir;
 }
 void processInput(GLFWwindow *window) {
   if (glfwGetKey(window, GLFW_KEY_ESCAPE)) glfwSetWindowShouldClose(window, true);
 }
 
-void shoot(GLFWwindow *window, unsigned int *VAO, unsigned int *VBO, unsigned int shaderProgram) {
-  float verts[] = {
-    -0.005f, -0.005f, 0.0f,
-    0.005f, -0.005f, 0.0f,
-    0.005f, 0.005f, 0.0f,
+void draw(GLFWwindow *window, unsigned int VAO, unsigned int VBO, unsigned int shaderProgram, const float *verts, glm::vec2 pos, glm::vec4 color, int transLoc, int colorLoc) {
+  glBindVertexArray(VAO);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
-    0.005f, 0.005f, 0.0f,
-    -0.005f, 0.005f, 0.0f,
-    -0.005f, -0.005f, 0.0f
-  };
-  glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_DYNAMIC_DRAW);
-  
+  // Update vertex data (optional if static)
+  glBufferData(GL_ARRAY_BUFFER, 6 * 3 * sizeof(float), verts, GL_DYNAMIC_DRAW);
+
+  // Use the shader
+  glUseProgram(shaderProgram);
+
+  // Apply transform (for positioning)
+  glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(pos, 0.0f));
+  glUniformMatrix4fv(transLoc, 1, GL_FALSE, glm::value_ptr(transform));
+
+  // Set color
+  glUniform4fv(colorLoc, 1, glm::value_ptr(color));
+
+  // Draw the triangles
+  glDrawArrays(GL_TRIANGLES, 0, 6);
 }
+
 
 int main() {
   // We're initializing GLFW here to make sure that the correct version is installed
@@ -107,8 +116,8 @@ int main() {
   glDeleteShader(fragmentShader);
   glm::mat4 transform = glm::mat4(1.0f);
   int transLoc = glGetUniformLocation(shaderProgram, "transform");
-  float speed = 0.0f, yVel = 0.0f, grav = -0.02581f, timeValue = glfwGetTime(), greenValue = ((sin(timeValue) / 2.0f) + 0.5f);
-  glm::vec2 pos(0.0f);
+  float speed = 0.0f, yVel = 0.0f, grav = -0.01981f, timeValue = glfwGetTime(), greenValue = ((sin(timeValue) / 2.0f) + 0.5f);
+  glm::vec2 pos(0.0f, -0.95f);
   glm::vec4 color(0.0f, 0.0f, 0.0f, 1.0f);
   int colorLoc = glGetUniformLocation(shaderProgram, "color"), vertexColorLocation = glGetUniformLocation(shaderProgram, "color");
   glUniform4fv(colorLoc, 1, glm::value_ptr(color));
@@ -124,18 +133,22 @@ int main() {
     glClear(GL_COLOR_BUFFER_BIT);
     glm::vec2 input = processMovement(window);
     processInput(window);
-    if (glm::length(input) > 0.0f) input = glm::normalize(input);
+    // if (glm::length(input) > 0.0f) input = glm::normalize(input);
     float dTime = 1.0f / 60.0f;
     pos.x += input.x * 0.01 + speed;
     yVel += grav * dTime;
     float limit = 1.0f, halfSize = 0.05f;
     if (pos.y >= -0.95 + halfSize + 0.0001) pos.y += 0.01 + yVel;
-    else pos.y += input.y * 0.01 + yVel;
+    else {
+      yVel += input.y * 0.03;
+      pos.y += yVel;
+      yVel = 0.0f;
+    }
     if (pos.y < -0.95 + halfSize) {
       pos.y = -0.95 + halfSize;
       yVel = 0.0f;
     }
-    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && pos.y <= -0.95 + halfSize) yVel += 0.01f;
+    // if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && pos.y <= -0.95 + halfSize) yVel += 0.03f;
     pos.x = glm::clamp(pos.x, -limit + halfSize, limit - halfSize);
     // pos.y = glm::clamp(pos.y, -limit + halfSize, limit - halfSize);
     // transform = glm::translate(transform, glm::vec3(input.x * speed, input.y * speed, 0.0f));
