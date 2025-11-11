@@ -37,25 +37,13 @@ void processInput(GLFWwindow *window) {
   if (glfwGetKey(window, GLFW_KEY_ESCAPE)) glfwSetWindowShouldClose(window, true);
 }
 
-void draw(GLFWwindow *window, unsigned int VAO, unsigned int VBO, unsigned int shaderProgram, const float *verts, glm::vec2 pos, glm::vec4 color, int transLoc, int colorLoc) {
+void draw(GLFWwindow *window, unsigned int VAO, unsigned int VBO, unsigned int shaderProgram, const float *verts, glm::vec2 pos, glm::vec4 color, int transLoc, int colorLoc, int low, int high) {
   glBindVertexArray(VAO);
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-
-  // Update vertex data (optional if static)
-  glBufferData(GL_ARRAY_BUFFER, 6 * 3 * sizeof(float), verts, GL_DYNAMIC_DRAW);
-
-  // Use the shader
   glUseProgram(shaderProgram);
-
-  // Apply transform (for positioning)
   glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(pos, 0.0f));
   glUniformMatrix4fv(transLoc, 1, GL_FALSE, glm::value_ptr(transform));
-
-  // Set color
   glUniform4fv(colorLoc, 1, glm::value_ptr(color));
-
-  // Draw the triangles
-  glDrawArrays(GL_TRIANGLES, 0, 6);
+  glDrawArrays(GL_TRIANGLES, low, high);
 }
 
 
@@ -89,51 +77,47 @@ int main() {
     -0.05f, 0.1f, 0.0f
   }; // Making verticies with (x, y, z) coords
      // The domain is [-1, 1], and the range is also [-1, 1]
-  unsigned int VAO;
-  glGenVertexArrays(1, &VAO);
-  glBindVertexArray(VAO);
-  unsigned int VBO;
-  glGenBuffers(1, &VBO);
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_DYNAMIC_DRAW);
-  unsigned int vertexShader;
-  vertexShader = glCreateShader(GL_VERTEX_SHADER);
-  glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-  glCompileShader(vertexShader);
-  unsigned int fragmentShader;
+  unsigned int VAO; // The V(ertex)A(rray)O(bject) stores vertex info for late use
+  glGenVertexArrays(1, &VAO); // Making array (don't I send verts anyways? Idk)
+  glBindVertexArray(VAO); // Binding to the variable called VAO
+  unsigned int VBO; // The V(ertex)B(uffer)O(bject) tells GPU how to process verts I think
+  glGenBuffers(1, &VBO); // Generating buffers
+  glBindBuffer(GL_ARRAY_BUFFER, VBO); // Binding to VBO variable, I believe that the GL_ARRAY_BUFFER is global
+  glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_DYNAMIC_DRAW); // Telling GPU what to draw (verts) and how to draw it (Dynamic draw)
+  unsigned int vertexShader; // Vertex shader info at the top of the file, vertexShaderSource
+  vertexShader = glCreateShader(GL_VERTEX_SHADER); // Making shader
+  glShaderSource(vertexShader, 1, &vertexShaderSource, NULL); // Binding shader infor
+  glCompileShader(vertexShader); // Compiling GLSL shader
+  unsigned int fragmentShader; // Same as vertex but for fragment
   fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
   glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
   glCompileShader(fragmentShader);
-  unsigned int shaderProgram;
-  shaderProgram = glCreateProgram();
-  glAttachShader(shaderProgram, vertexShader);
-  glAttachShader(shaderProgram, fragmentShader);
-  glLinkProgram(shaderProgram);
+  unsigned int shaderProgram; // Combines vertex and fragment shaders
+  shaderProgram = glCreateProgram(); // Init shader program
+  glAttachShader(shaderProgram, vertexShader); // Attaching vert shader
+  glAttachShader(shaderProgram, fragmentShader); // Attaching frag shader
+  glLinkProgram(shaderProgram); // Linking program
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
   glEnableVertexAttribArray(0);
-  // glUseProgram(shaderProgram);
-  glDeleteShader(vertexShader);
+  glDeleteShader(vertexShader); // Don't need shaders once program's made 
   glDeleteShader(fragmentShader);
-  glm::mat4 transform = glm::mat4(1.0f);
-  int transLoc = glGetUniformLocation(shaderProgram, "transform");
+  glm::mat4 transform = glm::mat4(1.0f); // Instead of reassignment, just tell the GPU how to move something
+  int transLoc = glGetUniformLocation(shaderProgram, "transform"); // Sends it to the uniform "transform" in the shader that updates vert info
   float speed = 0.0f, yVel = 0.0f, grav = -0.01981f, timeValue = glfwGetTime(), greenValue = ((sin(timeValue) / 2.0f) + 0.5f);
   glm::vec2 pos(0.0f, -0.95f);
   glm::vec4 color(0.0f, 0.0f, 0.0f, 1.0f);
   int colorLoc = glGetUniformLocation(shaderProgram, "color"), vertexColorLocation = glGetUniformLocation(shaderProgram, "color");
   glUniform4fv(colorLoc, 1, glm::value_ptr(color));
-  glUseProgram(shaderProgram);
   glUniform4f(vertexColorLocation, 0.0f, greenValue, 0.0f, 1.0f);
   while (!glfwWindowShouldClose(window)) { // Loop :D
     timeValue = glfwGetTime();
     greenValue = (sin(timeValue) / 2.0f) + 0.5f;
     vertexColorLocation = glGetUniformLocation(shaderProgram, "color");
-    glUseProgram(shaderProgram);
     glUniform4f(vertexColorLocation, 0.0f, greenValue, 0.0f, 1.0f);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glm::vec2 input = processMovement(window);
     processInput(window);
-    // if (glm::length(input) > 0.0f) input = glm::normalize(input);
     float dTime = 1.0f / 60.0f;
     pos.x += input.x * 0.01 + speed;
     yVel += grav * dTime;
@@ -148,10 +132,7 @@ int main() {
       pos.y = -0.95 + halfSize;
       yVel = 0.0f;
     }
-    // if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && pos.y <= -0.95 + halfSize) yVel += 0.03f;
     pos.x = glm::clamp(pos.x, -limit + halfSize, limit - halfSize);
-    // pos.y = glm::clamp(pos.y, -limit + halfSize, limit - halfSize);
-    // transform = glm::translate(transform, glm::vec3(input.x * speed, input.y * speed, 0.0f));
     transform = glm::translate(glm::mat4(1.0f), glm::vec3(pos, 0.0f));
     glUseProgram(shaderProgram);
     glUniformMatrix4fv(transLoc, 1, GL_FALSE, glm::value_ptr(transform));
@@ -159,12 +140,11 @@ int main() {
     color.x = 0.5f;
     color.y = greenValue;
     glUniform4fv(colorLoc, 1, glm::value_ptr(color));
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    //color = (0.0f, 0.5f, 0.0f, 1.0f);
+    draw(window, VAO, VBO, shaderProgram, verts, pos, color, transLoc, colorLoc, 0, 3);
     color.y = 0.0f;
     color.x = greenValue;
     glUniform4fv(colorLoc, 1, glm::value_ptr(color));
-    glDrawArrays(GL_TRIANGLES, 3, 6);
+    draw(window, VAO, VBO, shaderProgram, verts, pos, color, transLoc, colorLoc, 3, 6);
     glfwSwapBuffers(window);
     glfwPollEvents();
   }
